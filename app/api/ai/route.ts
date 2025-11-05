@@ -1,42 +1,53 @@
-export async function onRequest({ request, env }) {
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(request: NextRequest) {
   try {
-    
-    request.headers.delete('accept-encoding');
-    
     const { model, messages } = await request.json();
     if (!model || !messages) {
-      return new Response(JSON.stringify({ error: 'Missing model or messages' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      return NextResponse.json(
+        { error: 'Missing model or messages' },
+        { status: 400 }
+      );
     }
 
     if (model === 'deepseek-chat' || model === 'deepseek-reasoner') {
-      return proxyDeepSeek(messages, model, env);
+      return await proxyDeepSeek(messages, model);
     } else if (model === 'gpt-4o-mini') {
-      return proxyOpenAI(messages, env);
+      return await proxyOpenAI(messages);
     } else if (model === 'gemini-flash') {
-      return proxyGemini(messages, env);
+      return await proxyGemini(messages);
     } else if (model === 'nebius-studio') {
-      return proxyNebius(messages, env);
+      return await proxyNebius(messages);
     } else if (model === 'claude') {
-      return proxyClaude(messages, env);
+      return await proxyClaude(messages);
     } else if (model === 'gemini-flash-lite') {
-      return proxyGeminiFlashLite(messages, env);
+      return await proxyGeminiFlashLite(messages);
     } else if (model === 'gemini-2-5-flash-lite') {
-      return proxyGemini25FlashLite(messages, env);
+      return await proxyGemini25FlashLite(messages);
     } else {
-      return new Response(JSON.stringify({ error: 'Unknown model' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      return NextResponse.json(
+        { error: 'Unknown model' },
+        { status: 400 }
+      );
     }
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e.message || 'Internal error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e.message || 'Internal error' },
+      { status: 500 }
+    );
   }
 }
 
-async function proxyDeepSeek(messages, model, env) {
-  const apiKey = env.DEEPSEEK_API_KEY;
+async function proxyDeepSeek(messages: any[], model: string) {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'DEEPSEEK_API_KEY not set in environment' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: 'DEEPSEEK_API_KEY not set in environment' },
+      { status: 500 }
+    );
   }
   const deepseekModel = model === 'deepseek-reasoner' ? 'deepseek-reasoner' : 'deepseek-chat';
-  const requestBody = {
+  const requestBody: any = {
     model: deepseekModel,
     messages,
     stream: true,
@@ -45,7 +56,7 @@ async function proxyDeepSeek(messages, model, env) {
     requestBody.temperature = 0.7;
   }
 
-  const res = await PROVIDERS.fetch('https://api.deepseek.com/chat/completions', {
+  const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -56,12 +67,15 @@ async function proxyDeepSeek(messages, model, env) {
   return streamProxy(res);
 }
 
-async function proxyOpenAI(messages, env) {
-  const apiKey = env.OPENAI_API_KEY;
+async function proxyOpenAI(messages: any[]) {
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not set in environment' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: 'OPENAI_API_KEY not set in environment' },
+      { status: 500 }
+    );
   }
-  const res = await PROVIDERS.fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -76,10 +90,13 @@ async function proxyOpenAI(messages, env) {
   return streamProxy(res);
 }
 
-async function proxyGemini(messages, env) {
-  const apiKey = env.GEMINI_API_KEY;
+async function proxyGemini(messages: any[]) {
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not set in environment' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: 'GEMINI_API_KEY not set in environment' },
+      { status: 500 }
+    );
   }
   const geminiMessages = messages
     .filter(m => m.role !== 'system')
@@ -87,7 +104,7 @@ async function proxyGemini(messages, env) {
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.content }]
     }));
-  const res = await PROVIDERS.fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?alt=sse', {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?alt=sse', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -102,12 +119,15 @@ async function proxyGemini(messages, env) {
   return streamProxy(res);
 }
 
-async function proxyNebius(messages, env) {
-  const apiKey = env.NEBIUS_API_KEY;
+async function proxyNebius(messages: any[]) {
+  const apiKey = process.env.NEBIUS_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'NEBIUS_API_KEY not set in environment' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: 'NEBIUS_API_KEY not set in environment' },
+      { status: 500 }
+    );
   }
-  const res = await PROVIDERS.fetch('https://api.studio.nebius.com/v1/chat/completions', {
+  const res = await fetch('https://api.studio.nebius.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -129,13 +149,16 @@ async function proxyNebius(messages, env) {
   return streamProxy(res);
 }
 
-async function proxyClaude(messages, env) {
-  const apiKey = env.CLAUDE_API_KEY;
+async function proxyClaude(messages: any[]) {
+  const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'CLAUDE_API_KEY not set in environment' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: 'CLAUDE_API_KEY not set in environment' },
+      { status: 500 }
+    );
   }
   const claudeMessages = messages.map(m => ({ role: m.role, content: m.content }));
-  const res = await PROVIDERS.fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -152,10 +175,13 @@ async function proxyClaude(messages, env) {
   return streamProxy(res);
 }
 
-async function proxyGeminiFlashLite(messages, env) {
-  const apiKey = env.GEMINI_API_KEY;
+async function proxyGeminiFlashLite(messages: any[]) {
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not set in environment' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: 'GEMINI_API_KEY not set in environment' },
+      { status: 500 }
+    );
   }
   const geminiMessages = messages
     .filter(m => m.role !== 'system')
@@ -163,7 +189,7 @@ async function proxyGeminiFlashLite(messages, env) {
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.content }]
     }));
-  const res = await PROVIDERS.fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent?alt=sse', {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent?alt=sse', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -178,15 +204,21 @@ async function proxyGeminiFlashLite(messages, env) {
   
   if (!res.ok) {
     const errText = await res.text();
-    return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: errText },
+      { status: res.status }
+    );
   }
   return streamProxy(res);
 }
 
-async function proxyGemini25FlashLite(messages, env) {
-  const apiKey = env.GEMINI_API_KEY;
+async function proxyGemini25FlashLite(messages: any[]) {
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not set in environment' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: 'GEMINI_API_KEY not set in environment' },
+      { status: 500 }
+    );
   }
   const geminiMessages = messages
     .filter(m => m.role !== 'system')
@@ -194,7 +226,7 @@ async function proxyGemini25FlashLite(messages, env) {
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.content }]
     }));
-  const res = await PROVIDERS.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2-5-flash-lite:generateContent?alt=sse', {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2-5-flash-lite:generateContent?alt=sse', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -208,14 +240,17 @@ async function proxyGemini25FlashLite(messages, env) {
   });
   if (!res.ok) {
     const errText = await res.text();
-    return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json(
+      { error: errText },
+      { status: res.status }
+    );
   }
   return streamProxy(res);
 }
 
-function streamProxy(res) {
+function streamProxy(res: Response) {
   // 直接转发流式响应
-  return new Response(res.body, {
+  return new NextResponse(res.body, {
     status: res.status,
     headers: {
       'Content-Type': res.headers.get('Content-Type') || 'application/octet-stream',
